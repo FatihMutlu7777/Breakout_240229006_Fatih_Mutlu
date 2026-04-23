@@ -1,47 +1,71 @@
 #include <SFML/Graphics.hpp>
+#include <cmath> // abs fonksiyonu için gerekli
 
 int main() {
-    // 800x600 boyutunda bir pencere oluşturuyoruz
-    sf::RenderWindow window(sf::VideoMode(800, 600), "SFML Top Testi");
-    window.setFramerateLimit(60); // Oyunun hızını sabitle (60 FPS)
+    // 1. Pencere Oluşturma
+    sf::RenderWindow window(sf::VideoMode(800, 600), "Breakout - Carpisma Kontrolü");
+    window.setFramerateLimit(60); // Oyunun hızını sabitle
 
-    // Topu oluşturuyoruz (Yarıçapı 20 birim olan bir daire)
-    sf::CircleShape ball(20.f);
-    ball.setFillColor(sf::Color::Cyan); // Topun rengini Turkuaz yap
-    ball.setPosition(400.f, 300.f);     // Topun başlangıç konumu (Ekranın ortası)
+    // --- TOP (BALL) ---
+    sf::CircleShape ball(10.f);
+    ball.setFillColor(sf::Color::Cyan);
+    ball.setOrigin(10.f, 10.f); // Merkezi orta nokta yap
+    ball.setPosition(400.f, 300.f);
+    sf::Vector2f ballVelocity(5.f, 5.f); // Topun hızı
 
-    // Topun hareket hızı (X ve Y eksenlerinde saniyede kaç piksel gideceği)
-    sf::Vector2f ballVelocity(4.f, 4.f);
+    // --- DIKDORTGEN CUBUK (PADDLE) ---
+    sf::RectangleShape paddle(sf::Vector2f(120.f, 15.f)); // İnce bir çubuk
+    paddle.setFillColor(sf::Color::White);
+    paddle.setOrigin(60.f, 7.5f); // Merkezi orta nokta yap
+    paddle.setPosition(400.f, 570.f); // En altın biraz üstü
+    float paddleSpeed = 10.f;
 
-    // Ana Oyun Döngüsü
+    // --- ANA DÖNGÜ ---
     while (window.isOpen()) {
         sf::Event event;
         while (window.pollEvent(event)) {
-            // Pencere kapatılırsa döngüden çık
             if (event.type == sf::Event::Closed)
                 window.close();
         }
 
-        // --- GÜNCELLEME (MANTIK) BÖLÜMÜ ---
-        
-        // Topu mevcut hızıyla hareket ettir
-        ball.move(ballVelocity);
+        // --- GÜNCELLEME (MANTIK) ---
 
-        // Pencerenin sol veya sağ kenarına çarparsa X yönünü tersine çevir
-        if (ball.getPosition().x < 0 || ball.getPosition().x + ball.getRadius() * 2 > 800) {
-            ballVelocity.x = -ballVelocity.x;
+        // 1. Çubuk Kontrolleri
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) && paddle.getPosition().x > 60.f) {
+            paddle.move(-paddleSpeed, 0.f);
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) && paddle.getPosition().x < 740.f) {
+            paddle.move(paddleSpeed, 0.f);
         }
 
-        // Pencerenin üst veya alt kenarına çarparsa Y yönünü tersine çevir
-        if (ball.getPosition().y < 0 || ball.getPosition().y + ball.getRadius() * 2 > 600) {
+        // 2. Topun Hareketi
+        ball.move(ballVelocity);
+
+        // 3. Topun Ekran Kenarlarından Sekmesi
+        if (ball.getPosition().x - 10.f < 0 || ball.getPosition().x + 10.f > 800) {
+            ballVelocity.x = -ballVelocity.x;
+        }
+        if (ball.getPosition().y - 10.f < 0) {
             ballVelocity.y = -ballVelocity.y;
         }
 
-        // --- ÇİZİM BÖLÜMÜ ---
+        // 4. KRITIK ADIM: Topun Çubuğa Çarpıp Yukarı Sekmesi
+        // getGlobalBounds nesnelerin kapladığı alanı kontrol eder
+        if (ball.getGlobalBounds().intersects(paddle.getGlobalBounds())) {
+            // Topun Y hızını yukarı yöne (negatif) çeviriyoruz
+            ballVelocity.y = -std::abs(ballVelocity.y);
+            
+            // Topun çubuğun içinde takılı kalmaması için konumunu biraz yukarı itiyoruz
+            ball.setPosition(ball.getPosition().x, paddle.getPosition().y - 18.f);
+        }
+
+        // --- ÇİZİM ---
+        window.clear(sf::Color::Black);
         
-        window.clear(sf::Color::Black); // Önce ekranı siyah ile temizle
-        window.draw(ball);              // Topu çiz
-        window.display();               // Çizilenleri ekrana yansıt
+        window.draw(ball);
+        window.draw(paddle);
+        
+        window.display();
     }
 
     return 0;
