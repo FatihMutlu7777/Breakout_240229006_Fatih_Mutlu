@@ -1,0 +1,13 @@
+# SFML kütüphanesi
+SFML-2.6.1/
+
+# build dosyaları
+.vs/
+.vscode/
+bin/
+obj/
+Debug/
+Release/
+x64/
+out/
+build/
