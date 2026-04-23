@@ -2,46 +2,61 @@
 #include <vector>
 #include <cmath>
 
+struct Brick {
+    sf::RectangleShape shape;
+    int maxHealth;
+    int currentHealth;
+    bool destroyed = false;
+};
+
 int main() {
-    sf::RenderWindow window(sf::VideoMode(800, 600), "Breakout-Tuglalar");
+    sf::RenderWindow window(sf::VideoMode(800, 600), "Breakout-Dinamik Fizik ve Centikler");
     window.setFramerateLimit(60);
 
-    // --- TOP VE CUBUK TANIMLARI ---
+    // --- NESNE TANIMLARI ---
     sf::CircleShape ball(10.f);
     ball.setFillColor(sf::Color::Cyan);
     ball.setOrigin(10.f, 10.f);
-    ball.setPosition(400.f, 300.f);
-    sf::Vector2f ballVelocity(5.f, -5.f);
+    ball.setPosition(400.f, 400.f);
+    sf::Vector2f ballVelocity(0.f, -5.f); // Başta dik yukarı gitsin
 
     sf::RectangleShape paddle(sf::Vector2f(120.f, 15.f));
     paddle.setFillColor(sf::Color::White);
     paddle.setOrigin(60.f, 7.5f);
     paddle.setPosition(400.f, 570.f);
 
-    // --- TUĞLA (BRICK) YAPISI ---
-    struct Brick {
-        sf::RectangleShape shape;
-        bool destroyed = false;
-    };
-
+    // --- TUĞLALARI DİZME ---
     std::vector<Brick> bricks;
-    int columns = 10; // Yan yana 10 tuğla
-    int rows = 4;    // Üst üste 4 sıra
-    float brickWidth = 70.f;
-    float brickHeight = 20.f;
-    float spacing = 10.f; // Tuğlalar arası boşluk
-
-    // Tuğlaları oluşturup diziyoruz
-    for (int i = 0; i < columns; ++i) {
-        for (int j = 0; j < rows; ++j) {
+    for (int i = 0; i < 10; ++i) {
+        for (int j = 0; j < 3; ++j) {
             Brick b;
-            b.shape.setSize(sf::Vector2f(brickWidth, brickHeight));
-            b.shape.setFillColor(sf::Color::Yellow);
-            // Tuğlaları ekranın ortasına hizalayarak diziyoruz
-            b.shape.setPosition(i * (brickWidth + spacing) + 35.f, j * (brickHeight + spacing) + 50.f);
+            b.shape.setSize(sf::Vector2f(70.f, 25.f));
+            b.shape.setPosition(i * 80.f + 5.f, j * 35.f + 50.f);
+            b.maxHealth = 3 - j; // En üst 3, orta 2, alt 1 can
+            b.currentHealth = b.maxHealth;
+            b.shape.setFillColor(j == 0 ? sf::Color(100, 100, 100) : (j == 1 ? sf::Color(150, 150, 150) : sf::Color::White));
             bricks.push_back(b);
         }
     }
+
+    // --- ÇENTİK ÇİZME FONKSİYONU ---
+    auto drawCentik = [&](sf::RenderWindow& win, const Brick& b) {
+        int vurusSayisi = b.maxHealth - b.currentHealth;
+        if (vurusSayisi >= 1) { // Birinci Çentik
+            sf::Vertex line1[] = {
+                sf::Vertex(sf::Vector2f(b.shape.getPosition().x + 10, b.shape.getPosition().y), sf::Color::Black),
+                sf::Vertex(sf::Vector2f(b.shape.getPosition().x + 20, b.shape.getPosition().y + 25), sf::Color::Black)
+            };
+            win.draw(line1, 2, sf::Lines);
+        }
+        if (vurusSayisi >= 2) { // İkinci Çentik
+            sf::Vertex line2[] = {
+                sf::Vertex(sf::Vector2f(b.shape.getPosition().x + 50, b.shape.getPosition().y), sf::Color::Black),
+                sf::Vertex(sf::Vector2f(b.shape.getPosition().x + 40, b.shape.getPosition().y + 25), sf::Color::Black)
+            };
+            win.draw(line2, 2, sf::Lines);
+        }
+    };
 
     while (window.isOpen()) {
         sf::Event event;
@@ -50,25 +65,33 @@ int main() {
         }
 
         // --- GÜNCELLEME ---
-        // Çubuk Kontrolü
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left) && paddle.getPosition().x > 60.f) paddle.move(-10.f, 0.f);
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right) && paddle.getPosition().x < 740.f) paddle.move(10.f, 0.f);
 
         ball.move(ballVelocity);
 
-        // Ekran ve Çubuk Çarpışmaları
+        // Kenar Sekmeleri
         if (ball.getPosition().x - 10.f < 0 || ball.getPosition().x + 10.f > 800) ballVelocity.x = -ballVelocity.x;
         if (ball.getPosition().y - 10.f < 0) ballVelocity.y = -ballVelocity.y;
+
+        // --- DİNAMİK ÇUBUK SEKMESİ (Açı Ayarı) ---
         if (ball.getGlobalBounds().intersects(paddle.getGlobalBounds())) {
-            ballVelocity.y = -std::abs(ballVelocity.y);
+            // Çubuğun merkezine göre çarpma noktasını bul (-60 ile +60 arası)
+            float hitLocation = ball.getPosition().x - paddle.getPosition().x;
+            
+            // Çarpma noktasına göre X hızını ayarla (Sağa çarparsa pozitif, sola çarparsa negatif X)
+            ballVelocity.x = hitLocation / 10.f; 
+            ballVelocity.y = -std::abs(ballVelocity.y); // Her zaman yukarı sek
+            ball.setPosition(ball.getPosition().x, paddle.getPosition().y - 18.f);
         }
 
-        // --- TUĞLA ÇARPIŞMA KONTROLÜ ---
+        // --- TUĞLA ÇARPIŞMA VE ÇENTİK ---
         for (auto& brick : bricks) {
             if (!brick.destroyed && ball.getGlobalBounds().intersects(brick.shape.getGlobalBounds())) {
-                brick.destroyed = true; // Tuğlayı kırılmış olarak işaretle
-                ballVelocity.y = -ballVelocity.y; // Topu geri sektir
-                break; // Bir karede sadece bir tuğla kırılsın
+                brick.currentHealth--;
+                ballVelocity.y = -ballVelocity.y;
+                if (brick.currentHealth <= 0) brick.destroyed = true;
+                break;
             }
         }
 
@@ -76,14 +99,12 @@ int main() {
         window.clear(sf::Color::Black);
         window.draw(paddle);
         window.draw(ball);
-
-        // Sadece kırılmamış tuğlaları çiz
-        for (const auto& brick : bricks) {
-            if (!brick.destroyed) {
-                window.draw(brick.shape);
+        for (const auto& b : bricks) {
+            if (!b.destroyed) {
+                window.draw(b.shape);
+                drawCentik(window, b); // Çentikleri tuğlanın üstüne çiz
             }
         }
-
         window.display();
     }
     return 0;
